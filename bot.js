@@ -254,4 +254,29 @@ client.on("interactionCreate", async interaction => {
 
         if (!tools[toolName]) return interaction.reply({ content: "❌ Tool not found.", ephemeral: true });
 
-        if (!licenses[interaction.user.id
+        if (!licenses[interaction.user.id]) licenses[interaction.user.id] = {};
+        licenses[interaction.user.id][toolName] = licenseKey;
+        saveLicenses();
+
+        await interaction.reply({ 
+            content: `✅ License redeemed for **${toolName}**!\nKey: **${licenseKey}**`, 
+            ephemeral: true 
+        });
+    }
+});
+
+// ======================= API للتحقق من الرخص =======================
+const apiApp = express();
+apiApp.use(express.json());
+
+apiApp.post("/verify", (req, res) => {
+    const { discordId, tool, license } = req.body;
+    if (licenses[discordId] && licenses[discordId][tool] === license) {
+        return res.json({ valid: true });
+    }
+    return res.json({ valid: false });
+});
+
+apiApp.listen(PORT, "0.0.0.0", () => console.log(`🌐 License API running on port ${PORT}`));
+
+client.login(TOKEN);
