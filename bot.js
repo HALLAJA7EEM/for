@@ -1,3 +1,4 @@
+require('dotenv').config(); // قراءة المتغيرات من .env
 
 const { 
     Client, 
@@ -16,11 +17,12 @@ const {
 const fs = require("fs");
 const express = require("express");
 
-// ======================= التوكن والمتغيرات =======================
-const TOKEN = "MTQwNDQ3MTM2OTU2Mjg1MzUxOQ.GeNy6F.VhW-rB5E3seim4Xc1dwQscZ0XDfMBn1pU3sFYY";
-const CLIENT_ID = "1404471369562853519";
-const GUILD_ID = "1331578573970083890";
-const ADMIN_ROLE = "1404633618625859796";
+// ======================= المتغيرات =======================
+const TOKEN = process.env.DISCORD_TOKEN;
+const CLIENT_ID = process.env.CLIENT_ID;
+const GUILD_ID = process.env.GUILD_ID;
+const ADMIN_ROLE = process.env.ADMIN_ROLE;
+const PORT = process.env.PORT || 3000;
 
 // ======================= قاعدة بيانات الرخص =======================
 let licenses = {};
@@ -36,9 +38,7 @@ let tools = {};
 if (fs.existsSync("tools.json")) {
     tools = JSON.parse(fs.readFileSync("tools.json"));
 } else {
-    tools = {
-        "NitroGen": { download: "https://example.com/aura" },
-    };
+    tools = { "NitroGen": { download: "https://example.com/aura" } };
     fs.writeFileSync("tools.json", JSON.stringify(tools, null, 2));
 }
 function saveTools() {
@@ -83,7 +83,6 @@ const commands = [
 ].map(command => command.toJSON());
 
 const rest = new REST({ version: "10" }).setToken(TOKEN);
-
 (async () => {
     try {
         console.log("⏳ Registering commands...");
@@ -107,22 +106,22 @@ function getMainMenu() {
                 new StringSelectMenuOptionBuilder()
                     .setLabel("Redeem")
                     .setDescription("Redeem your key")
-                    .setEmoji("<a:redeem:1416212509316087939>")
+                    .setEmoji("🔑")
                     .setValue("redeem"),
                 new StringSelectMenuOptionBuilder()
                     .setLabel("Check")
                     .setDescription("Check your key status")
-                    .setEmoji("<a:check:1416212798286987344>")
+                    .setEmoji("✅")
                     .setValue("check"),
                 new StringSelectMenuOptionBuilder()
                     .setLabel("Download")
                     .setDescription("Download the resource")
-                    .setEmoji("<a:download:1416213098313814046>")
+                    .setEmoji("⬇️")
                     .setValue("download"),
                 new StringSelectMenuOptionBuilder()
                     .setLabel("Reset Panel")
                     .setDescription("Refresh the menu")
-                    .setEmoji("<a:reset:1409957787730968736>")
+                    .setEmoji("🔄")
                     .setValue("reset")
             )
     );
@@ -130,161 +129,129 @@ function getMainMenu() {
 
 // ======================= تعامل مع أوامر السلاش =======================
 client.on("interactionCreate", async interaction => {
-    if (!interaction.isCommand()) return;
+    if (interaction.isCommand()) {
+        if (interaction.commandName === "panel") {
+            const embed = new EmbedBuilder()
+                .setTitle("🔑 Redeem Your Key")
+                .setDescription("Select an option from the menu below to redeem, check, or download your tool.")
+                .setColor("Red")
+                .setImage("https://cdn.discordapp.com/attachments/1336424425179971690/1416214583953326160/2394538cb416ae8e.jpg");
+            await interaction.reply({ embeds: [embed], components: [getMainMenu()] });
+        }
 
-    if (interaction.commandName === "panel") {
-        const embed = new EmbedBuilder()
-            .setTitle("🔑 Redeem Your Key")
-            .setDescription("Select an option from the menu below to redeem, check, or download your tool.")
-            .setColor("Red")
-            .setImage("https://cdn.discordapp.com/attachments/1336424425179971690/1416214583953326160/2394538cb416ae8e.jpg");
+        if (interaction.commandName === "createlicense") {
+            if (!interaction.member.roles.cache.has(ADMIN_ROLE)) 
+                return interaction.reply({ content: "❌ You don't have permission.", ephemeral: true });
 
-        await interaction.reply({ embeds: [embed], components: [getMainMenu()] });
-    }
+            const user = interaction.options.getUser("user");
+            const tool = interaction.options.getString("tool");
+            const licenseKey = Math.random().toString(36).substring(2, 10).toUpperCase();
 
-    if (interaction.commandName === "createlicense") {
-        if (!interaction.member.roles.cache.has(ADMIN_ROLE)) 
-            return interaction.reply({ content: "❌ You don't have permission.", ephemeral: true });
-
-        const user = interaction.options.getUser("user");
-        const tool = interaction.options.getString("tool");
-        const licenseKey = Math.random().toString(36).substring(2, 10).toUpperCase();
-
-        if (!licenses[user.id]) licenses[user.id] = {};
-        licenses[user.id][tool] = licenseKey;
-        saveLicenses();
-
-        await interaction.reply(`✅ License created for <@${user.id}> | Tool: **${tool}**\nKey: \`${licenseKey}\``);
-    }
-
-    if (interaction.commandName === "revokelicense") {
-        if (!interaction.member.roles.cache.has(ADMIN_ROLE)) 
-            return interaction.reply({ content: "❌ You don't have permission.", ephemeral: true });
-
-        const user = interaction.options.getUser("user");
-        const tool = interaction.options.getString("tool");
-
-        if (licenses[user.id] && licenses[user.id][tool]) {
-            delete licenses[user.id][tool];
+            if (!licenses[user.id]) licenses[user.id] = {};
+            licenses[user.id][tool] = licenseKey;
             saveLicenses();
-            await interaction.reply(`❌ License revoked from <@${user.id}> for tool: **${tool}**`);
-        } else {
-            await interaction.reply(`⚠️ No license found for this user on **${tool}**`);
+
+            await interaction.reply(`✅ License created for <@${user.id}> | Tool: **${tool}**\nKey: \`${licenseKey}\``);
+        }
+
+        if (interaction.commandName === "revokelicense") {
+            if (!interaction.member.roles.cache.has(ADMIN_ROLE)) 
+                return interaction.reply({ content: "❌ You don't have permission.", ephemeral: true });
+
+            const user = interaction.options.getUser("user");
+            const tool = interaction.options.getString("tool");
+
+            if (licenses[user.id] && licenses[user.id][tool]) {
+                delete licenses[user.id][tool];
+                saveLicenses();
+                await interaction.reply(`❌ License revoked from <@${user.id}> for tool: **${tool}**`);
+            } else {
+                await interaction.reply(`⚠️ No license found for this user on **${tool}**`);
+            }
+        }
+
+        if (interaction.commandName === "addtool") {
+            if (!interaction.member.roles.cache.has(ADMIN_ROLE)) 
+                return interaction.reply({ content: "❌ You don't have permission.", ephemeral: true });
+
+            const name = interaction.options.getString("name");
+            const download = interaction.options.getString("download");
+
+            tools[name] = { download };
+            saveTools();
+
+            await interaction.reply(`✅ Tool **${name}** added successfully with download link: ${download}`);
         }
     }
 
-    if (interaction.commandName === "addtool") {
-        if (!interaction.member.roles.cache.has(ADMIN_ROLE)) 
-            return interaction.reply({ content: "❌ You don't have permission.", ephemeral: true });
+    // ======================= تعامل مع القائمة =======================
+    if (interaction.isStringSelectMenu()) {
+        const choice = interaction.values[0];
+        if (interaction.customId !== "main_menu") return;
 
-        const name = interaction.options.getString("name");
-        const download = interaction.options.getString("download");
+        if (choice === "redeem") {
+            const modal = new ModalBuilder()
+                .setCustomId("redeem_modal")
+                .setTitle("Redeem Your Key");
 
-        tools[name] = { download };
-        saveTools();
+            const toolInput = new TextInputBuilder()
+                .setCustomId("tool_name")
+                .setLabel("Tool Name")
+                .setPlaceholder("e.g. NitroGen")
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
 
-        await interaction.reply(`✅ Tool **${name}** added successfully with download link: ${download}`);
-    }
-});
+            const keyInput = new TextInputBuilder()
+                .setCustomId("license_key")
+                .setLabel("License Key")
+                .setPlaceholder("Enter your license key")
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
 
-// ======================= تعامل مع القائمة =======================
-client.on("interactionCreate", async interaction => {
-    if (!interaction.isStringSelectMenu()) return;
-    const choice = interaction.values[0];
-    if (interaction.customId !== "main_menu") return;
+            modal.addComponents(
+                new ActionRowBuilder().addComponents(toolInput),
+                new ActionRowBuilder().addComponents(keyInput)
+            );
 
-    if (choice === "redeem") {
-        const modal = new ModalBuilder()
-            .setCustomId("redeem_modal")
-            .setTitle("Redeem Your Key");
-
-        const toolInput = new TextInputBuilder()
-            .setCustomId("tool_name")
-            .setLabel("Tool Name")
-            .setPlaceholder("e.g. NitroGen")
-            .setStyle(TextInputStyle.Short)
-            .setRequired(true);
-
-        const keyInput = new TextInputBuilder()
-            .setCustomId("license_key")
-            .setLabel("License Key")
-            .setPlaceholder("Enter your license key")
-            .setStyle(TextInputStyle.Short)
-            .setRequired(true);
-
-        modal.addComponents(
-            new ActionRowBuilder().addComponents(toolInput),
-            new ActionRowBuilder().addComponents(keyInput)
-        );
-
-        await interaction.showModal(modal);
-    }
-
-    if (choice === "check") {
-        const toolsOwned = licenses[interaction.user.id];
-        if (!toolsOwned) return interaction.reply({ content: "❌ You don't have an active key currently.", ephemeral: true });
-
-        let msg = "✅ Your active licenses:\n";
-        for (const [tool, key] of Object.entries(toolsOwned)) msg += `• **${tool}** → \`${key}\`\n`;
-        await interaction.reply({ content: msg, ephemeral: true });
-    }
-
-    if (choice === "download") {
-        const toolsOwned = licenses[interaction.user.id];
-        if (!toolsOwned) return interaction.reply({ content: "❌ You don't have an active key currently.", ephemeral: true });
-
-        let msg = "⬇️ Your downloads:\n";
-        for (const [tool, key] of Object.entries(toolsOwned)) {
-            if (tools[tool]) msg += `• **${tool}** → ${tools[tool].download}\n`;
+            await interaction.showModal(modal);
         }
-        await interaction.reply({ content: msg, ephemeral: true });
+
+        if (choice === "check") {
+            const toolsOwned = licenses[interaction.user.id];
+            if (!toolsOwned) return interaction.reply({ content: "❌ You don't have an active key currently.", ephemeral: true });
+
+            let msg = "✅ Your active licenses:\n";
+            for (const [tool, key] of Object.entries(toolsOwned)) msg += `• **${tool}** → \`${key}\`\n`;
+            await interaction.reply({ content: msg, ephemeral: true });
+        }
+
+        if (choice === "download") {
+            const toolsOwned = licenses[interaction.user.id];
+            if (!toolsOwned) return interaction.reply({ content: "❌ You don't have an active key currently.", ephemeral: true });
+
+            let msg = "⬇️ Your downloads:\n";
+            for (const [tool, key] of Object.entries(toolsOwned)) {
+                if (tools[tool]) msg += `• **${tool}** → ${tools[tool].download}\n`;
+            }
+            await interaction.reply({ content: msg, ephemeral: true });
+        }
+
+        if (choice === "reset") {
+            const embed = new EmbedBuilder()
+                .setTitle("🔑 Redeem Your Key")
+                .setDescription("Select an option from the menu below to redeem, check, or download your tool.")
+                .setColor("Yellow")
+                .setImage("https://cdn.discordapp.com/attachments/1336424425179971690/1416214583953326160/2394538cb416ae8e.jpg");
+
+            await interaction.update({ embeds: [embed], components: [getMainMenu()] });
+        }
     }
 
-    if (choice === "reset") {
-        const embed = new EmbedBuilder()
-            .setTitle("🔑 Redeem Your Key")
-            .setDescription("Select an option from the menu below to redeem, check, or download your tool.")
-            .setColor("Yellow")
-            .setImage("https://cdn.discordapp.com/attachments/1336424425179971690/1416214583953326160/2394538cb416ae8e.jpg");
+    // ======================= تعامل مع Redeem Modal =======================
+    if (interaction.isModalSubmit() && interaction.customId === "redeem_modal") {
+        const toolName = interaction.fields.getTextInputValue("tool_name");
+        const licenseKey = interaction.fields.getTextInputValue("license_key");
 
-        await interaction.update({ embeds: [embed], components: [getMainMenu()] });
-    }
-});
+        if (!tools[toolName]) return interaction.reply({ content: "❌ Tool not found.", ephemeral: true });
 
-// ======================= تعامل مع Redeem Modal =======================
-client.on("interactionCreate", async interaction => {
-    if (!interaction.isModalSubmit()) return;
-    if (interaction.customId !== "redeem_modal") return;
-
-    const toolName = interaction.fields.getTextInputValue("tool_name");
-    const licenseKey = interaction.fields.getTextInputValue("license_key");
-
-    if (!tools[toolName]) return interaction.reply({ content: "❌ Tool not found.", ephemeral: true });
-
-    if (!licenses[interaction.user.id]) licenses[interaction.user.id] = {};
-    licenses[interaction.user.id][toolName] = licenseKey;
-    saveLicenses();
-
-    await interaction.reply({ 
-        content: `✅ License redeemed for **${toolName}**!\nKey: **${licenseKey}**`, 
-        ephemeral: true 
-    });
-});
-
-// ======================= API للتحقق من الرخص =======================
-const apiApp = express();
-apiApp.use(express.json());
-
-const PORT = process.env.PORT || 3000;
-
-apiApp.post("/verify", (req, res) => {
-    const { discordId, tool, license } = req.body;
-    if (licenses[discordId] && licenses[discordId][tool] === license) {
-        return res.json({ valid: true });
-    }
-    return res.json({ valid: false });
-});
-
-apiApp.listen(PORT, "0.0.0.0", () => console.log(`🌐 License API running on port ${PORT}`));
-
-client.login(TOKEN);
+        if (!licenses[interaction.user.id
